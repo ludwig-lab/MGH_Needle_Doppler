@@ -42,8 +42,7 @@ writemode = 'overwrite';
  writerObj.FrameRate=50;
  open(writerObj);
  
-% Need to change from the default renderer to zbuffer to get it to work right.
-% openGL doesn't work and Painters is way too slow.
+% Need to change from the default renderer to zbuffer
 set(gcf, 'renderer', 'zbuffer');
 
 
