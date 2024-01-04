@@ -11,13 +11,13 @@ clc;
 close all;
 clear all;
 
-case_file = 'example'; 
+case_file = 'example_salmon'; 
 
 % Switch between cases
 switch case_file
-    case 'example' % Example data set       
+    case 'example_salmon' % Example data set       
         % Set directory and filenames for phase files
-        example_data_files_folder = 'E:\My Drive\4_UW-Madison\2_4_MGH+FDA+UW OCT\needle_code_share\Example_data';
+        data_files_folder = 'E:\My Drive\4_UW-Madison\2_4_MGH+FDA+UW OCT\needle_code_share\Example_data';
         file_name1 = '[p.needle_2][s.salmon][06-16-2021_14-15-13]phase1.mgh';
         file_name2 = '[p.needle_2][s.salmon][06-16-2021_14-15-13]phase2.mgh';
         read_opt.nFrames = 1024;
@@ -31,9 +31,9 @@ switch case_file
         calibration_line_end = 215;   % End of calibration line (fiber tip)
 
                
-    case 'salmon' % Salmon data
+    case 'UW_salmon' % Salmon data
         % Set directory and filenames for phase files
-        example_data_files_folder = 'H:\OFDIData\user.Ricardo\[p.231220_PS_Needle_Probe]\[p.231220_PS_Needle_Probe][s.Salmon_Probe_04_Test3_Dist1.2cm][12-20-2023_15-52-35]';
+        data_files_folder = 'H:\OFDIData\user.Ricardo\[p.231220_PS_Needle_Probe]\[p.231220_PS_Needle_Probe][s.Salmon_Probe_04_Test3_Dist1.2cm][12-20-2023_15-52-35]';
         file_name1 = '[p.231220_PS_Needle_Probe][s.Salmon_Probe_04_Test3_Dist1.2cm][12-20-2023_15-52-35].phaseXA.mgh';
         file_name2 = '[p.231220_PS_Needle_Probe][s.Salmon_Probe_04_Test3_Dist1.2cm][12-20-2023_15-52-35].phaseXB.mgh';
         read_opt.nFrames = 1023;
@@ -50,10 +50,10 @@ switch case_file
     otherwise
         error('Invalid case name. Please specify `example` for example data set or `salmon` for salmon data.');
 end
-addpath(example_data_files_folder);
+addpath(data_files_folder);
 
 % Setting the directory for reading the file
-read_opt.dirname = example_data_files_folder;
+read_opt.dirname = data_files_folder;
 
 % Define initial frame and number of frames to read
 read_opt.iFrame = 1;
@@ -61,7 +61,8 @@ read_opt.iFrame = 1;
 % Read the MGH file with the specified options
 phase_img_8bit1 = readMgh(file_name1, read_opt);
 
-%%
+%% Convert phase data to true phase values and calculate phase difference
+
 % Convert the 8-bit phase images to true phase values in the range of -pi to pi.
 % The original data was saved as 8-bit (0-255) and is now being converted back.
 number_bits = 8;
@@ -77,9 +78,8 @@ col_distance = (strcmp(machine_ID, 'MGH')) * 2 + (strcmp(machine_ID, 'SPARC')) *
 diff_ph1 = calculate_phase_difference(phase1, col_distance);
 
 
-%% Focusing on a specific region of interest by slicing the phase difference array
+%% Slice the phase difference array to focus on a specific region of interest by 
 % phase difference of only the region of interest (sliced)
-
 
 % Calculate the number of rows and columns based on the region of interest
 num_rows = roi_end_row - roi_start_row + 1; % Number of rows
@@ -89,12 +89,12 @@ num_rows_cal = calibration_line_end - calibration_line_start; % Number of rows f
 diff_ph1_sliced = diff_ph1(roi_start_row:roi_end_row,:,:); % Slicing
 
 
-%% Concatenating two frames together, handling cases with an odd number of frames
+%% Concatenate two frames together, handling cases with an odd number of frames
 diff_ph_con = concatenate_frames(diff_ph1_sliced);
 
 % Calculating the number of frames after concatenation
 num_frm_con = ceil(num_frm/2);
-%% Filtering
+%% Apply thresoldingg
 % Parameters for Filtering
 threshold_value = 2.5; % Threshold value for filtering
 filtered_diff_ph_con = diff_ph_con;
@@ -104,7 +104,7 @@ num_modifications = sum(diff_ph_con(:) > threshold_value);
 % Display the number of modifications (if needed)
 disp(['Number of modifications made during filtering: ', num2str(num_modifications)]);
 
-%% Moving median values every 73 columns
+%% apply Moving median filters 
 
 % Parameters
 diff_phase_con_med = zeros(size(diff_ph_con));
@@ -115,7 +115,9 @@ for k = 1:num_frm_con
     % Apply moving median with padding at the edges
     % 'movmedian' automatically handles the edge cases by using end values
     % for padding. This simplifies the process and eliminates the need for
-    % manual concatenation and array manipulation.
+    % manual concatenation and array manipulation. There about 6%
+    % difference in the processed results. See Danielle's original code for
+    % more information.
     diff_phase_con_med(:,:,k) = movmedian(diff_ph_con(:,:,k), median_filter_size, 2, 'Endpoints', 'shrink');
 end
 
@@ -124,7 +126,7 @@ diff_phase_con_med_shifted = diff_phase_con_med + pi;
 figure('Name', 'movmedian+2pi'), imshow3D(diff_phase_con_med_shifted, [0 2*pi]);
 colormap(redblue);
 
-%%
+%% Average across B scans
 % Compute the average of each A-scan in the region of interest for each frame
 num_cols = size(diff_ph_con, 2); % Number of columns in the diff_ph_con array
 avg_a_scan_per_frame = zeros(1, num_cols, num_frm_con);
@@ -146,12 +148,12 @@ plot(unwrap(normalized_avg_a_scan(:,:)));
 title('Average A-Scan Across Frames');
 xlabel('Concatenated Frame Index');
 ylabel('Normalized Average Value');
-%%
+%% Calculate Distance
+
 % Parameters
 wavelength = 0.0013; % Wavelength in mm (1.3 um)
 refractive_index = 1.39; % Refractive index of tissue
 
-% Calculate Distance
 % Applying the formula to convert normalized phase change to distance
 % based on wavelength and refractive index
 distance = (normalized_avg_a_scan * wavelength) / (4 * pi * refractive_index);
@@ -187,9 +189,11 @@ xlabel('time [s]');
 ylabel('Distance [mm]');
 
 % Save the cumulative distance data to a .mat file
-save('cumulative_distance.mat', 'cumulative_distance');
+save(fullfile(data_files_folder,[case_file,'_cumulative_distance.mat']), 'cumulative_distance');
 
-%% below has not been refactored yet
+%% below has not been refactored yet 1/4/2024. 
+% Question what is the purpose of the following code?
+% Looks like publication quality image
 
 figure(11)
 % Create axes
@@ -219,20 +223,23 @@ ax.Position(1) = 0.1802;
 pbaspect([1 1 1]);
 % set(axes1,'LineWidth',6,'TickLength',[0.025 0.04],'XTick',...
 %     [0 5 10 15 20 25],'FontSize',36);
-%%
+%% below has not been refactored yet 1/4/2024. 
+% Question what is the purpose of the following code?
+% likely to be an older version of distance calculation snippet above
+
 %Distance calibration line
 w_length=0.0013; %mm %1.3um
 n=1.3;
 disc=(diff_phase_con_med(num_rows_cal,:,:).*w_length)./(4*pi*n);
 disc=disc-mean(disc(:,1:10000));
-time=(1:num_col*num_frm_con)*40*(10^-6);
+time=(1:num_cols*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance c'),plot(time,disc(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance [mm]')
 sum=0;
-totaldisc=zeros(1,num_col*num_frm_con);
-for u=1:num_col*num_frm_con
+totaldisc=zeros(1,num_cols*num_frm_con);
+for u=1:num_cols*num_frm_con
     sum=sum+disc(1,u);
     totaldisc(:,u)=sum;
 end
