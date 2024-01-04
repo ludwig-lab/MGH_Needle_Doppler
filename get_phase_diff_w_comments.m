@@ -61,46 +61,20 @@ readOpt.iFrame = 1;
 % Read the MGH file with the specified options
 phaseImage8bit1 = readMgh(filename1, readOpt);
 
+%%
 % Convert the 8-bit phase images to true phase values in the range of -pi to pi.
 % The original data was saved as 8-bit (0-255) and is now being converted back.
 number_bits = 8;
 ph1 = single(phaseImage8bit1).*(2*pi)./(2^number_bits-1)-pi;
 
 % Retrieve the dimensions of the phase image (rows, columns, frames)
-[rows, cols, f] = size(ph1); 
+[~, ~, num_frm] = size(ph1); 
 
-% Initializing an array to store phase differences
-% Initialize the diffph1 array and set loop variables
-switch Machine_ID
-    case 'MGH'
-        % Phase difference of only odd columns for MGH
-        diffph1 = zeros(rows, floor(cols/2) - 1, f);
-        colIndices = 1:2:cols-2;  % Consider only odd columns (and avoid going out of bounds)
+% Define column distance based on machine type
+col_distance = (strcmp(Machine_ID, 'MGH')) * 2 + (strcmp(Machine_ID, 'SPARC')) * 1;
 
-    case 'SPARC'
-        % Phase difference between adjacent columns for SPARC
-        diffph1 = zeros(rows, cols - 1, f);
-        colIndices = 1:cols-1;  % Consider all adjacent columns
-
-    otherwise
-        error('Invalid Machine_ID. Please specify ''MGH'' or ''SPARC''.');
-end
-
-% Computing phase differences
-for j = 1:f
-    for i = colIndices
-        diff = ph1(:, i, j) - ph1(:, i+1, j);
-        switch Machine_ID
-            case 'MGH'
-                % Store in corresponding index for MGH
-                diffph1(:, floor(i/2) + 1, j) = diff;
-            case 'SPARC'
-                % Store in corresponding index for SPARC
-                diffph1(:, i, j) = diff;
-        end
-    end
-end
-
+% Call the function to calculate phase difference
+diff_ph1 = calculate_phase_difference(ph1, col_distance);
 
 
 %% Focusing on a specific region of interest by slicing the phase difference array
@@ -108,37 +82,18 @@ end
 
 
 % Calculate the number of rows and columns based on the region of interest
-r = roiEndRow - roiStartRow + 1; % Number of rows
-c = calibrationLineEnd - calibrationLineStart; % Number of columns for calibration
+num_rows = roiEndRow - roiStartRow + 1; % Number of rows
+num_rows_cal = calibrationLineEnd - calibrationLineStart; % Number of rows for calibration
 
 % Slice the phase difference array to focus on the specified region of interest
-diffph1sl = diffph1(roiStartRow:roiEndRow,:,:); % Slicing
+diff_ph1_sliced = diff_ph1(roiStartRow:roiEndRow,:,:); % Slicing
 
 
 %% Concatenating two frames together, handling cases with an odd number of frames
-frameStep = 2; % Step size for iterating through frames
-halfFrameWidth = size(diffph1,2); % Half the width of the frame for concatenation
-concatenationWidth = size(diffph1,2)*2; % Total width for concatenation
-
-% Initialize the concatenated phase difference array
-diffphc = zeros(r, concatenationWidth, f);
-
-% Iterate through the frames with the specified step size
-for l = 1:frameStep:f
-    if l + frameStep > f
-        % Handle the case where the frame number exceeds the limit
-        diffphc(:,1:halfFrameWidth,l) = diffph1sl(:,:,l);
-        break;
-    end
-    % Concatenate two frames together
-    diffphc(:,:,l) = horzcat(diffph1sl(:,:,l), diffph1sl(:,:,l + frameStep - 1));
-end
-
-% Slice the concatenated array to remove frames with only zeros
-diffphcon = diffphc(:,:,1:frameStep:end);
+diff_ph_con = concatenate_frames(diff_ph1_sliced);
 
 % Calculating the number of frames after concatenation
-fr=ceil(f/2);
+num_frm_con = ceil(num_frm/2);
 %% Filtering
 % Parameters for Filtering
 thresholdValue = 2.5; % Threshold value for filtering
@@ -148,12 +103,12 @@ maxColumns = concatenationWidth; % Maximum number of columns to iterate through
 i = 0; j = 0; k = 0; z = 0;
 
 % Iterate through the frames, rows, and columns for filtering
-for k = 1:fr
+for k = 1:num_frm_con
     for j = 1:maxColumns
-        for i = 1:r
-            v = diffphcon(i, j, k);
+        for i = 1:num_rows
+            v = diff_ph_con(i, j, k);
             if v > thresholdValue
-                diffphcon(i, j, k) = 0;
+                diff_ph_con(i, j, k) = 0;
                 z = z + 1; % Counter for the number of modifications made
             end  
         end
@@ -168,33 +123,33 @@ edgeExtensionSize = 36; % Edge extension size for concatenation e.g. 36
 columnSize = concatenationWidth; % Defined elsewhere in your script
 
 % Initialize arrays with the parameterized sizes
-movm = zeros(r, columnSize);
-movma = zeros(r, columnSize + edgeExtensionSize);
-movmb = zeros(r, columnSize + 2 * edgeExtensionSize);
-diffphconM = zeros(r, columnSize, fr);
-diffphconMa = zeros(r, columnSize + edgeExtensionSize, fr);
-diffphconMb = zeros(r, columnSize + 2 * edgeExtensionSize, fr);
+movm = zeros(num_rows, columnSize);
+movma = zeros(num_rows, columnSize + edgeExtensionSize);
+movmb = zeros(num_rows, columnSize + 2 * edgeExtensionSize);
+diffphconM = zeros(num_rows, columnSize, num_frm_con);
+diffphconMa = zeros(num_rows, columnSize + edgeExtensionSize, num_frm_con);
+diffphconMb = zeros(num_rows, columnSize + 2 * edgeExtensionSize, num_frm_con);
 
 % Processing loop
-for k = 1:fr
-    if fr == 1
-        movm = movmedian(diffphcon(:,:,k), medianFilterSize, 2);
+for k = 1:num_frm_con
+    if num_frm_con == 1
+        movm = movmedian(diff_ph_con(:,:,k), medianFilterSize, 2);
         diffphconM(:,:,k) = movm;
         break;
     end
-    if k + 1 > fr
-        diffphconMa(:,:,k) = horzcat(diffphcon(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diffphcon(:,:,k));
+    if k + 1 > num_frm_con
+        diffphconMa(:,:,k) = horzcat(diff_ph_con(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diff_ph_con(:,:,k));
         movma = movmedian(diffphconMa(:,:,k), medianFilterSize, 2);
         diffphconM(:,:,k) = movma(:,edgeExtensionSize+1:end);
         break;
     end
     if k ~= 1
-        diffphconMb(:,:,k) = horzcat(diffphcon(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diffphcon(:,:,k), diffphcon(:,1:edgeExtensionSize,k+1));
+        diffphconMb(:,:,k) = horzcat(diff_ph_con(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diff_ph_con(:,:,k), diff_ph_con(:,1:edgeExtensionSize,k+1));
         movmb = movmedian(diffphconMb(:,:,k), medianFilterSize, 2);
         diffphconM(:,:,k) = movmb(:,edgeExtensionSize+1:columnSize+edgeExtensionSize);
         continue;
     end
-    diffphconMa(:,:,k) = horzcat(diffphcon(:,:,k), diffphcon(:,1:edgeExtensionSize,k+1));
+    diffphconMa(:,:,k) = horzcat(diff_ph_con(:,:,k), diff_ph_con(:,1:edgeExtensionSize,k+1));
     movma = movmedian(diffphconMa(:,:,k), medianFilterSize, 2);
     diffphconM(:,:,k) = movma(:,1:columnSize);
 end
@@ -208,9 +163,9 @@ colormap(redblue);
 
 %%
 %Average of each A-scan in region of interest
-block=zeros(1,columnSize,fr);
-block2=zeros(1,columnSize*fr);
-for i=1:fr
+block=zeros(1,columnSize,num_frm_con);
+block2=zeros(1,columnSize*num_frm_con);
+for i=1:num_frm_con
     block(:,:,i)=mean(diffphconM(:,:,i),1);
     a=columnSize*(i-1)+1;
     b=columnSize*(i);
@@ -226,19 +181,19 @@ dis=(block2.*w_length)./(4*pi*n);
 %correct for drift with line below if needed. Region where needle is not touching tissue should be
 %zero
 dis=dis-1.6e-7;
-time=(1:columnSize*fr)*40*(10^-6);
+time=(1:columnSize*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance'),plot(time,dis(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance []')
 sum=0;
-totaldisr=zeros(1,columnSize*fr);
+totaldisr=zeros(1,columnSize*num_frm_con);
 % for u=1:1022*fr
 %     sum=sum+dis(1,u);
 %     totaldisr(:,u)=sum;
 % end
 dis2 = movmedian(dis,5000);
-for u=1:columnSize*fr
+for u=1:columnSize*num_frm_con
     sum=sum+dis2(1,u);
     totaldisr(:,u)=sum;
 end
@@ -285,16 +240,16 @@ pbaspect([1 1 1]);
 %Distance calibration line
 w_length=0.0013; %mm %1.3um
 n=1.3;
-disc=(diffphconM(c,:,:).*w_length)./(4*pi*n);
+disc=(diffphconM(num_rows_cal,:,:).*w_length)./(4*pi*n);
 disc=disc-mean(disc(:,1:10000));
-time=(1:columnSize*fr)*40*(10^-6);
+time=(1:columnSize*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance c'),plot(time,disc(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance [mm]')
 sum=0;
-totaldisc=zeros(1,columnSize*fr);
-for u=1:columnSize*fr
+totaldisc=zeros(1,columnSize*num_frm_con);
+for u=1:columnSize*num_frm_con
     sum=sum+disc(1,u);
     totaldisc(:,u)=sum;
 end

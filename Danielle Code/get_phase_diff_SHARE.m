@@ -7,7 +7,7 @@
    % https://doi.org/10.48550/arXiv.2305.14390
 clc, close all, clear all
 
-addpath ('E:\My Drive\4_UW-Madison\2_4_MGH+FDA+UW OCT\Needle_PS-OCT_on_WS\MGH_Needle_Doppler\Original Code') %code folder
+addpath ('E:\My Drive\4_UW-Madison\2_4_MGH+FDA+UW OCT\Needle_PS-OCT_on_WS\MGH_Needle_Doppler\Danielle Code') %code folder
 Example_Data_files_folder = 'E:\My Drive\4_UW-Madison\2_4_MGH+FDA+UW OCT\needle_code_share\Example_data';
 addpath (Example_Data_files_folder) % Files folder
 
@@ -25,49 +25,50 @@ phase1= readMgh('[p.needle_2][s.salmon][06-16-2021_14-15-13]phase1.mgh',readOpt)
 ph1=(single(phase1).*(2*pi)./255)-pi; %1024x1024x1024
 %ph2=(single(phase2).*(2*pi)./255)-pi;
 
+
 %number of frames
 f=readOpt.nFrames;
 
 %figure('Name','Calibration line'),plot(unwrap(ph1(473,:,a)));
 
-%phase difference of only odd columns
-diffph1=zeros(1024,511,f); %1024x511x1024
+%% phase difference of only odd columns
+diff_ph1=zeros(1024,511,f); %1024x511x1024
 for j=1:f
     for i=1:511
         diff=ph1(:,(2*(i-1))+1,j)-ph1(:,(2*(i-1))+3,j);
-        diffph1(:,i,j)=diff;
+        diff_ph1(:,i,j)=diff;
     end
 end
 
 %phase difference of only the region of interest (sliced)
-r=272-220+1; %Number of rows
+num_rows=272-220+1; %Number of rows
 
-c=215-205; %Calibration line (fiber tip)
+num_cols=215-205; %Calibration line (fiber tip)
 %diffph1sl=diffph1(478:586,:,:); %slicing
-diffph1sl=diffph1(220:272,:,:); %slicing
+diff_ph1_sliced=diff_ph1(220:272,:,:); %slicing
 
 %concatenating 2 frames together
-diffphc=zeros(r,1022,f);
+diff_ph_con_=zeros(num_rows,1022,f);
 for l=1:2:f
     if l+1>f
-        diffphc(:,1:511,l)=diffph1sl(:,:,l);
+        diff_ph_con_(:,1:511,l)=diff_ph1_sliced(:,:,l);
         break
     end
-    diffphc(:,:,l)=horzcat(diffph1sl(:,:,l),diffph1sl(:,:,l+1));
+    diff_ph_con_(:,:,l)=horzcat(diff_ph1_sliced(:,:,l),diff_ph1_sliced(:,:,l+1));
 end
-diffphcon=diffphc(:,:,1:2:end); %because the for has a step of 2, even number frames are 0
+diff_ph_con=diff_ph_con_(:,:,1:2:end); %because the for has a step of 2, even number frames are 0
 
 %number of frames rounded
-fr=ceil(f/2);
+num_frm_con=ceil(f/2);
 
 %Filter
 i=0;j=0;k=0;z=0;
-for k=1:fr
+for k=1:num_frm_con
     for j=1:1022
-        for i=1:r
-            v=diffphcon(i,j,k);
+        for i=1:num_rows
+            v=diff_ph_con(i,j,k);
             if v>2.5 
-                diffphcon(i,j,k)=0;
+                diff_ph_con(i,j,k)=0;
                 z=z+1;
             end  
         end
@@ -75,31 +76,31 @@ for k=1:fr
 end
 
 %Moving median values every 73 columns
-movm=zeros(r,1022);
-movma=zeros(r,1058);
-movmb=zeros(r,1094);
-diffphconM=zeros(r,1022,fr);
-diffphconMa=zeros(r,1058,fr);
-diffphconMb=zeros(r,1094,fr);
-for k=1:fr
-    if fr==1
-        movm=movmedian(diffphcon(:,:,k),73,2);
+movm=zeros(num_rows,1022);
+movma=zeros(num_rows,1058);
+movmb=zeros(num_rows,1094);
+diffphconM=zeros(num_rows,1022,num_frm_con);
+diffphconMa=zeros(num_rows,1058,num_frm_con);
+diffphconMb=zeros(num_rows,1094,num_frm_con);
+for k=1:num_frm_con
+    if num_frm_con==1
+        movm=movmedian(diff_ph_con(:,:,k),73,2);
         diffphconM(:,:,k)=movm;
         break
     end
-    if k+1>fr
-        diffphconMa(:,:,k)=horzcat(diffphcon(:,987:1022,k-1),diffphcon(:,:,k));
+    if k+1>num_frm_con
+        diffphconMa(:,:,k)=horzcat(diff_ph_con(:,987:1022,k-1),diff_ph_con(:,:,k));
         movma=movmedian(diffphconMa(:,:,k),73,2);
         diffphconM(:,:,k)=movma(:,37:end,:);
         break
     end
     if k~=1
-        diffphconMb(:,:,k)=horzcat(diffphcon(:,987:1022,k-1),diffphcon(:,:,k),diffphcon(:,1:36,k+1));
+        diffphconMb(:,:,k)=horzcat(diff_ph_con(:,987:1022,k-1),diff_ph_con(:,:,k),diff_ph_con(:,1:36,k+1));
         movmb=movmedian(diffphconMb(:,:,k),73,2);
         diffphconM(:,:,k)=movmb(:,37:1058,:);
         continue
     end
-    diffphconMa(:,:,k)=horzcat(diffphcon(:,:,k),diffphcon(:,1:36,k+1));
+    diffphconMa(:,:,k)=horzcat(diff_ph_con(:,:,k),diff_ph_con(:,1:36,k+1));
     movma=movmedian(diffphconMa(:,:,k),73,2);
     diffphconM(:,:,k)=movma(:,1:1022,:);
     
@@ -108,11 +109,11 @@ end
  diffphconM1=diffphconM +(pi);
  figure('Name','movmedian+2pi'),imshow3D(diffphconM1,[0 2*pi]);
  colormap(redblue);
-
+%%
 %Average of each A-scan in region of interest
-block=zeros(1,1022,fr);
-block2=zeros(1,1022*fr);
-for i=1:fr
+block=zeros(1,1022,num_frm_con);
+block2=zeros(1,1022*num_frm_con);
+for i=1:num_frm_con
     block(:,:,i)=mean(diffphconM(:,:,i),1);
     a=1022*(i-1)+1;
     b=1022*(i);
@@ -128,19 +129,19 @@ dis=(block2.*w_length)./(4*pi*n);
 %correct for drift with line below if needed. Region where needle is not touching tissue should be
 %zero
 dis=dis-1.6e-7;
-time=(1:1022*fr)*40*(10^-6);
+time=(1:1022*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance'),plot(time,dis(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance []')
 sum=0;
-totaldisr=zeros(1,1022*fr);
+totaldisr=zeros(1,1022*num_frm_con);
 % for u=1:1022*fr
 %     sum=sum+dis(1,u);
 %     totaldisr(:,u)=sum;
 % end
 dis2 = movmedian(dis,5000);
-for u=1:1022*fr
+for u=1:1022*num_frm_con
     sum=sum+dis2(1,u);
     totaldisr(:,u)=sum;
 end
@@ -185,7 +186,7 @@ ylp = get(ylh, 'Position');
 ylp(1) = -5;
 set(ylh, 'Rotation',90, 'Position',ylp, 'VerticalAlignment','middle', 'HorizontalAlignment','center')
 ax = gca;
-c = ax.Position;
+num_cols = ax.Position;
 ax.Position(1) = 0.1802;
 pbaspect([1 1 1]);
 set(axes1,'LineWidth',6,'TickLength',[0.025 0.04],'XTick',...
@@ -194,16 +195,16 @@ set(axes1,'LineWidth',6,'TickLength',[0.025 0.04],'XTick',...
 %Distance calibration line
 w_length=0.0013; %mm %1.3um
 n=1.3;
-disc=(diffphconM(c,:,:).*w_length)./(4*pi*n);
+disc=(diffphconM(num_cols,:,:).*w_length)./(4*pi*n);
 disc=disc-mean(disc(:,1:10000));
-time=(1:1022*fr)*40*(10^-6);
+time=(1:1022*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance c'),plot(time,disc(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance [mm]')
 sum=0;
-totaldisc=zeros(1,1022*fr);
-for u=1:1022*fr
+totaldisc=zeros(1,1022*num_frm_con);
+for u=1:1022*num_frm_con
     sum=sum+disc(1,u);
     totaldisc(:,u)=sum;
 end
