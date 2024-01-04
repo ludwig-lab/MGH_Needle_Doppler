@@ -106,26 +106,63 @@ disp(['Number of modifications made during filtering: ', num2str(num_modificatio
 
 %% apply Moving median filters 
 
-% Parameters
-diff_phase_con_med = zeros(size(diff_ph_con));
-median_filter_size = 73; % Size of the window for the moving median
+% % Parameters
+% diff_phase_con_med = zeros(size(diff_ph_con));
+% median_filter_size = 73; % Size of the window for the moving median
+% 
+% % Apply moving median filter directly on each frame
+% for k = 1:num_frm_con
+%     % Apply moving median with padding at the edges
+%     % 'movmedian' automatically handles the edge cases by using end values
+%     % for padding. This simplifies the process and eliminates the need for
+%     % manual concatenation and array manipulation. There about 6%
+%     % difference in the processed results. See Danielle's original code for
+%     % more information.
+%     diff_phase_con_med(:,:,k) = movmedian(diff_ph_con(:,:,k), median_filter_size, 2, 'Endpoints', 'shrink');
+% end
 
-% Apply moving median filter directly on each frame
-for k = 1:num_frm_con
-    % Apply moving median with padding at the edges
-    % 'movmedian' automatically handles the edge cases by using end values
-    % for padding. This simplifies the process and eliminates the need for
-    % manual concatenation and array manipulation. There about 6%
-    % difference in the processed results. See Danielle's original code for
-    % more information.
-    diff_phase_con_med(:,:,k) = movmedian(diff_ph_con(:,:,k), median_filter_size, 2, 'Endpoints', 'shrink');
+
+% Parameters
+medianFilterSize = 73; % Size of the window for the moving median e.g. 73
+edgeExtensionSize = 36; % Edge extension size for concatenation e.g. 36
+columnSize = concatenationWidth; % Defined elsewhere in your script
+
+% Initialize arrays with the parameterized sizes
+movm = zeros(r, columnSize);
+movma = zeros(r, columnSize + edgeExtensionSize);
+movmb = zeros(r, columnSize + 2 * edgeExtensionSize);
+diff_phase_con_med = zeros(r, columnSize, fr);
+diff_phase_con_med_a = zeros(r, columnSize + edgeExtensionSize, fr);
+diff_phase_con_med_b = zeros(r, columnSize + 2 * edgeExtensionSize, fr);
+
+% Processing loop
+for k = 1:fr
+    if fr == 1
+        movm = movmedian(diffphcon(:,:,k), medianFilterSize, 2);
+        diff_phase_con_med(:,:,k) = movm;
+        break;
+    end
+    if k + 1 > fr
+        diff_phase_con_med_a(:,:,k) = horzcat(diffphcon(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diffphcon(:,:,k));
+        movma = movmedian(diff_phase_con_med_a(:,:,k), medianFilterSize, 2);
+        diff_phase_con_med(:,:,k) = movma(:,edgeExtensionSize+1:end);
+        break;
+    end
+    if k ~= 1
+        diff_phase_con_med_b(:,:,k) = horzcat(diffphcon(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diffphcon(:,:,k), diffphcon(:,1:edgeExtensionSize,k+1));
+        movmb = movmedian(diff_phase_con_med_b(:,:,k), medianFilterSize, 2);
+        diff_phase_con_med(:,:,k) = movmb(:,edgeExtensionSize+1:columnSize+edgeExtensionSize);
+        continue;
+    end
+    diff_phase_con_med_a(:,:,k) = horzcat(diffphcon(:,:,k), diffphcon(:,1:edgeExtensionSize,k+1));
+    movma = movmedian(diff_phase_con_med_a(:,:,k), medianFilterSize, 2);
+    diff_phase_con_med(:,:,k) = movma(:,1:columnSize);
 end
 
 % Add pi to the filtered phase difference for display
 diff_phase_con_med_shifted = diff_phase_con_med + pi;
 figure('Name', 'movmedian+2pi'), imshow3D(diff_phase_con_med_shifted, [0 2*pi]);
 colormap(redblue);
-
 %% Average across B scans
 % Compute the average of each A-scan in the region of interest for each frame
 num_cols = size(diff_ph_con, 2); % Number of columns in the diff_ph_con array
