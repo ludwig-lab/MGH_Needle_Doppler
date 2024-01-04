@@ -53,7 +53,7 @@ end
 addpath(Example_Data_files_folder);
 
 % Setting the directory for reading the file
-readOpt.dirname = Example_Data_files_folder
+readOpt.dirname = Example_Data_files_folder;
 
 % Define initial frame and number of frames to read
 readOpt.iFrame = 1;
@@ -97,103 +97,76 @@ num_frm_con = ceil(num_frm/2);
 %% Filtering
 % Parameters for Filtering
 thresholdValue = 2.5; % Threshold value for filtering
-maxColumns = concatenationWidth; % Maximum number of columns to iterate through
+filtered_diff_ph_con = diff_ph_con;
+filtered_diff_ph_con(filtered_diff_ph_con > thresholdValue) = 0;
+num_modifications = sum(diff_ph_con(:) > thresholdValue);
 
-% Initialize counters
-i = 0; j = 0; k = 0; z = 0;
-
-% Iterate through the frames, rows, and columns for filtering
-for k = 1:num_frm_con
-    for j = 1:maxColumns
-        for i = 1:num_rows
-            v = diff_ph_con(i, j, k);
-            if v > thresholdValue
-                diff_ph_con(i, j, k) = 0;
-                z = z + 1; % Counter for the number of modifications made
-            end  
-        end
-    end
-end
+% Display the number of modifications (if needed)
+disp(['Number of modifications made during filtering: ', num2str(num_modifications)]);
 
 %% Moving median values every 73 columns
 
 % Parameters
-medianFilterSize = 73; % Size of the window for the moving median e.g. 73
-edgeExtensionSize = 36; % Edge extension size for concatenation e.g. 36
-columnSize = concatenationWidth; % Defined elsewhere in your script
+diffphconM = zeros(size(diff_ph_con));
+medianFilterSize = 73; % Size of the window for the moving median
 
-% Initialize arrays with the parameterized sizes
-movm = zeros(num_rows, columnSize);
-movma = zeros(num_rows, columnSize + edgeExtensionSize);
-movmb = zeros(num_rows, columnSize + 2 * edgeExtensionSize);
-diffphconM = zeros(num_rows, columnSize, num_frm_con);
-diffphconMa = zeros(num_rows, columnSize + edgeExtensionSize, num_frm_con);
-diffphconMb = zeros(num_rows, columnSize + 2 * edgeExtensionSize, num_frm_con);
-
-% Processing loop
+% Apply moving median filter directly on each frame
 for k = 1:num_frm_con
-    if num_frm_con == 1
-        movm = movmedian(diff_ph_con(:,:,k), medianFilterSize, 2);
-        diffphconM(:,:,k) = movm;
-        break;
-    end
-    if k + 1 > num_frm_con
-        diffphconMa(:,:,k) = horzcat(diff_ph_con(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diff_ph_con(:,:,k));
-        movma = movmedian(diffphconMa(:,:,k), medianFilterSize, 2);
-        diffphconM(:,:,k) = movma(:,edgeExtensionSize+1:end);
-        break;
-    end
-    if k ~= 1
-        diffphconMb(:,:,k) = horzcat(diff_ph_con(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diff_ph_con(:,:,k), diff_ph_con(:,1:edgeExtensionSize,k+1));
-        movmb = movmedian(diffphconMb(:,:,k), medianFilterSize, 2);
-        diffphconM(:,:,k) = movmb(:,edgeExtensionSize+1:columnSize+edgeExtensionSize);
-        continue;
-    end
-    diffphconMa(:,:,k) = horzcat(diff_ph_con(:,:,k), diff_ph_con(:,1:edgeExtensionSize,k+1));
-    movma = movmedian(diffphconMa(:,:,k), medianFilterSize, 2);
-    diffphconM(:,:,k) = movma(:,1:columnSize);
+    % Apply moving median with padding at the edges
+    % 'movmedian' automatically handles the edge cases by using end values
+    % for padding. This simplifies the process and eliminates the need for
+    % manual concatenation and array manipulation.
+    diffphconM(:,:,k) = movmedian(diff_ph_con(:,:,k), medianFilterSize, 2, 'Endpoints', 'shrink');
 end
 
 % Add pi to the filtered phase difference and display
 diffphconM1 = diffphconM + pi;
-figure('Name','movmedian+2pi'), imshow3D(diffphconM1, [0 2*pi]);
+figure('Name', 'movmedian+2pi'), imshow3D(diffphconM1, [0 2*pi]);
 colormap(redblue);
 
-
-
 %%
-%Average of each A-scan in region of interest
-block=zeros(1,columnSize,num_frm_con);
-block2=zeros(1,columnSize*num_frm_con);
-for i=1:num_frm_con
-    block(:,:,i)=mean(diffphconM(:,:,i),1);
-    a=columnSize*(i-1)+1;
-    b=columnSize*(i);
-    block2(:,a:b)=block(:,:,i);
+% Compute the average of each A-scan in the region of interest for each frame
+num_cols = size(diff_ph_con, 2); % Number of columns in the diff_ph_con array
+avg_a_scan_per_frame = zeros(1, num_cols, num_frm_con);
+
+for frame_idx = 1:num_frm_con
+    % Compute the mean along the first dimension (rows)
+    avg_a_scan_per_frame(:,:,frame_idx) = mean(diffphconM(:,:,frame_idx), 1);
 end
-block2=block2-mean(block2(:,1:end));
-figure('Name','Block'),plot(unwrap(block2(:,:)));
- 
+
+% Concatenate the averages from all frames into a single row
+concatenated_avg_a_scan = reshape(avg_a_scan_per_frame, [1, num_cols * num_frm_con]);
+
+% Normalize by subtracting the mean across the concatenated data
+normalized_avg_a_scan = concatenated_avg_a_scan - mean(concatenated_avg_a_scan, 2);
+
+% Plotting the unwrapped concatenated and normalized averages
+figure('Name', 'Average A-Scan per Frame');
+plot(unwrap(normalized_avg_a_scan(:,:)));
+title('Average A-Scan Across Frames');
+xlabel('Concatenated Frame Index');
+ylabel('Normalized Average Value');
+%%
 %Distance
 w_length=0.0013; %mm %1.3um 
 n=1.39; %refractive index of tissue
-dis=(block2.*w_length)./(4*pi*n);
+dis=(normalized_avg_a_scan.*w_length)./(4*pi*n);
 %correct for drift with line below if needed. Region where needle is not touching tissue should be
 %zero
 dis=dis-1.6e-7;
-time=(1:columnSize*num_frm_con)*40*(10^-6);
+time=(1:num_col*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance'),plot(time,dis(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance []')
 sum=0;
-totaldisr=zeros(1,columnSize*num_frm_con);
+totaldisr=zeros(1,num_col*num_frm_con);
 % for u=1:1022*fr
 %     sum=sum+dis(1,u);
 %     totaldisr(:,u)=sum;
 % end
 dis2 = movmedian(dis,5000);
-for u=1:columnSize*num_frm_con
+for u=1:num_col*num_frm_con
     sum=sum+dis2(1,u);
     totaldisr(:,u)=sum;
 end
@@ -206,7 +179,51 @@ ylabel('Distance [mm]')
 
 %save to .mat file
 save totaldisr_salmon.mat totaldisr
+
 %%
+% Parameters
+wavelength = 0.0013; % Wavelength in mm (1.3 um)
+refractive_index = 1.39; % Refractive index of tissue
+
+% Calculate Distance
+% Applying the formula to convert normalized phase change to distance
+% based on wavelength and refractive index
+distance = (normalized_avg_a_scan * wavelength) / (4 * pi * refractive_index);
+
+% Correct for any drift if necessary
+drift_correction = 1.6e-7;
+corrected_distance = distance - drift_correction;
+
+% Time array for X-axis in plotting
+sample_interval = 40e-6; % Sampling interval (40 microseconds)
+total_samples = num_col * num_frm_con;
+time = (1:total_samples) * sample_interval;
+
+% Plot Relative Distance
+figure('Name', 'Relative Distance');
+plot(time, corrected_distance);
+title('Relative Distance');
+xlabel('time [s]');
+ylabel('Distance [mm]');
+
+% Calculate Cumulative (Absolute) Distance
+% Using moving median filter to smooth the distance signal
+smoothed_distance = movmedian(corrected_distance, 5000);
+
+% Calculating cumulative distance over time
+cumulative_distance = cumsum(smoothed_distance);
+
+% Plot Absolute Distance
+figure('Name', 'Cumulative distance');
+plot(time, cumulative_distance);
+title('Cumulative Distance');
+xlabel('time [s]');
+ylabel('Distance [mm]');
+
+% Save the cumulative distance data to a .mat file
+save('cumulative_distance.mat', 'cumulative_distance');
+
+%% below has not refactored yet
 
 figure(11)
 % Create axes
@@ -242,14 +259,14 @@ w_length=0.0013; %mm %1.3um
 n=1.3;
 disc=(diffphconM(num_rows_cal,:,:).*w_length)./(4*pi*n);
 disc=disc-mean(disc(:,1:10000));
-time=(1:columnSize*num_frm_con)*40*(10^-6);
+time=(1:num_col*num_frm_con)*40*(10^-6);
 figure('Name','Relative distance c'),plot(time,disc(:,:));
 title('Relative Distance')
 xlabel('time [s]') 
 ylabel('Distance [mm]')
 sum=0;
-totaldisc=zeros(1,columnSize*num_frm_con);
-for u=1:columnSize*num_frm_con
+totaldisc=zeros(1,num_col*num_frm_con);
+for u=1:num_col*num_frm_con
     sum=sum+disc(1,u);
     totaldisc(:,u)=sum;
 end

@@ -74,7 +74,7 @@ for k=1:num_frm_con
         end
     end
 end
-
+%%
 %Moving median values every 73 columns
 movm=zeros(num_rows,1022);
 movma=zeros(num_rows,1058);
