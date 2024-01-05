@@ -51,7 +51,7 @@ pixel(pixel<1)=1;
 %needle visualization
 needle_visualization_matrix = [-10 0; 10 0; 10 1425; -10 1385] ; 
 
-fseek(ii_file_id,num_rows*num_cols,'bof');
+fseek(ii_file_id,1024*1024,'bof'); % skipping the meta data
 
 angle_range = 88:0.05:92;
 v = [];

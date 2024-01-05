@@ -7,7 +7,7 @@
    % https://doi.org/10.48550/arXiv.2305.14390
 
 clear all;
-
+addpath('E:\My Drive\4_UW-Madison\2_4_MGH+FDA+UW OCT\needle_code_share\Example_data')
 %open intensity file
 ii_file = '[p.needle_2][s.salmon][06-16-2021_14-15-13]ii.mgh';
 

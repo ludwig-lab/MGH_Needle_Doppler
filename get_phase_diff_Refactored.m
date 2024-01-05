@@ -91,7 +91,8 @@ diff_ph1_sliced = diff_ph1(roi_start_row:roi_end_row,:,:); % Slicing
 
 %% Concatenate two frames together, handling cases with an odd number of frames
 diff_ph_con = concatenate_frames(diff_ph1_sliced);
-
+checksum = sum(diff_ph_con(:));
+disp(['Checksum after concatenating: ', num2str(checksum)]);
 % Calculating the number of frames after concatenation
 num_frm_con = ceil(num_frm/2);
 %% Apply thresoldingg
@@ -104,60 +105,54 @@ num_modifications = sum(diff_ph_con(:) > threshold_value);
 % Display the number of modifications (if needed)
 disp(['Number of modifications made during filtering: ', num2str(num_modifications)]);
 
+checksum = sum(filtered_diff_ph_con(:));
+disp(['Checksum after thresolding: ', num2str(checksum)]);
 %% apply Moving median filters 
-
-% % Parameters
-% diff_phase_con_med = zeros(size(diff_ph_con));
-% median_filter_size = 73; % Size of the window for the moving median
-% 
-% % Apply moving median filter directly on each frame
-% for k = 1:num_frm_con
-%     % Apply moving median with padding at the edges
-%     % 'movmedian' automatically handles the edge cases by using end values
-%     % for padding. This simplifies the process and eliminates the need for
-%     % manual concatenation and array manipulation. There about 6%
-%     % difference in the processed results. See Danielle's original code for
-%     % more information.
-%     diff_phase_con_med(:,:,k) = movmedian(diff_ph_con(:,:,k), median_filter_size, 2, 'Endpoints', 'shrink');
-% end
-
 
 % Parameters
 medianFilterSize = 73; % Size of the window for the moving median e.g. 73
 edgeExtensionSize = 36; % Edge extension size for concatenation e.g. 36
-columnSize = concatenationWidth; % Defined elsewhere in your script
+columnSize = size(filtered_diff_ph_con,2); % Defined elsewhere in your script
 
 % Initialize arrays with the parameterized sizes
-movm = zeros(r, columnSize);
-movma = zeros(r, columnSize + edgeExtensionSize);
-movmb = zeros(r, columnSize + 2 * edgeExtensionSize);
-diff_phase_con_med = zeros(r, columnSize, fr);
-diff_phase_con_med_a = zeros(r, columnSize + edgeExtensionSize, fr);
-diff_phase_con_med_b = zeros(r, columnSize + 2 * edgeExtensionSize, fr);
+movm = zeros(num_rows, columnSize);
+movma = zeros(num_rows, columnSize + edgeExtensionSize);
+movmb = zeros(num_rows, columnSize + 2 * edgeExtensionSize);
+diff_phase_con_med = zeros(num_rows, columnSize, num_frm_con);
+diff_phase_con_med_a = zeros(num_rows, columnSize + edgeExtensionSize, num_frm_con);
+diff_phase_con_med_b = zeros(num_rows, columnSize + 2 * edgeExtensionSize, num_frm_con);
 
 % Processing loop
-for k = 1:fr
-    if fr == 1
-        movm = movmedian(diffphcon(:,:,k), medianFilterSize, 2);
+for k = 1:num_frm_con
+    if num_frm_con == 1
+        movm = movmedian(filtered_diff_ph_con(:,:,k), medianFilterSize, 2);
         diff_phase_con_med(:,:,k) = movm;
         break;
     end
-    if k + 1 > fr
-        diff_phase_con_med_a(:,:,k) = horzcat(diffphcon(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diffphcon(:,:,k));
+    if k + 1 > num_frm_con
+        diff_phase_con_med_a(:,:,k) = horzcat(filtered_diff_ph_con(:,columnSize-edgeExtensionSize+1:columnSize,k-1), filtered_diff_ph_con(:,:,k));
         movma = movmedian(diff_phase_con_med_a(:,:,k), medianFilterSize, 2);
         diff_phase_con_med(:,:,k) = movma(:,edgeExtensionSize+1:end);
         break;
     end
+
     if k ~= 1
-        diff_phase_con_med_b(:,:,k) = horzcat(diffphcon(:,columnSize-edgeExtensionSize+1:columnSize,k-1), diffphcon(:,:,k), diffphcon(:,1:edgeExtensionSize,k+1));
+        diff_phase_con_med_b(:,:,k) = horzcat(filtered_diff_ph_con(:,columnSize-edgeExtensionSize+1:columnSize,k-1), filtered_diff_ph_con(:,:,k), filtered_diff_ph_con(:,1:edgeExtensionSize,k+1));
         movmb = movmedian(diff_phase_con_med_b(:,:,k), medianFilterSize, 2);
         diff_phase_con_med(:,:,k) = movmb(:,edgeExtensionSize+1:columnSize+edgeExtensionSize);
         continue;
     end
-    diff_phase_con_med_a(:,:,k) = horzcat(diffphcon(:,:,k), diffphcon(:,1:edgeExtensionSize,k+1));
+
+    diff_phase_con_med_a(:,:,k) = horzcat(filtered_diff_ph_con(:,:,k), filtered_diff_ph_con(:,1:edgeExtensionSize,k+1));
     movma = movmedian(diff_phase_con_med_a(:,:,k), medianFilterSize, 2);
-    diff_phase_con_med(:,:,k) = movma(:,1:columnSize);
+    diff_phase_con_med(:,:,k) = movma(:,1:columnSize,:);
+
+    
+
 end
+
+checksum = sum(diff_phase_con_med(:));
+disp(['Checksum after movmedian: ', num2str(checksum)]);
 
 % Add pi to the filtered phase difference for display
 diff_phase_con_med_shifted = diff_phase_con_med + pi;
@@ -165,7 +160,7 @@ figure('Name', 'movmedian+2pi'), imshow3D(diff_phase_con_med_shifted, [0 2*pi]);
 colormap(redblue);
 %% Average across B scans
 % Compute the average of each A-scan in the region of interest for each frame
-num_cols = size(diff_ph_con, 2); % Number of columns in the diff_ph_con array
+num_cols = size(filtered_diff_ph_con, 2); % Number of columns in the filtered_diff_ph_con array
 avg_a_scan_per_frame = zeros(1, num_cols, num_frm_con);
 
 for frame_idx = 1:num_frm_con
@@ -178,6 +173,8 @@ concatenated_avg_a_scan = reshape(avg_a_scan_per_frame, [1, num_cols * num_frm_c
 
 % Normalize by subtracting the mean across the concatenated data
 normalized_avg_a_scan = concatenated_avg_a_scan - mean(concatenated_avg_a_scan, 2);
+checksum = sum(normalized_avg_a_scan(:));
+disp(['Checksum after Averaging across B scans and more: ', num2str(checksum)]);
 
 % Plotting the unwrapped concatenated and normalized averages
 figure('Name', 'Average A-Scan per Frame');
@@ -195,9 +192,13 @@ refractive_index = 1.39; % Refractive index of tissue
 % based on wavelength and refractive index
 distance = (normalized_avg_a_scan * wavelength) / (4 * pi * refractive_index);
 
+checksum = sum(distance(:));
+disp(['Checksum after Calculating distance: ', num2str(checksum)]);
+
 % Correct for any drift if necessary
 drift_correction = 1.6e-7;
 corrected_distance = distance - drift_correction;
+
 
 % Time array for X-axis in plotting
 sample_interval = 40e-6; % Sampling interval (40 microseconds)
@@ -215,6 +216,7 @@ ylabel('Distance [mm]');
 % Using moving median filter to smooth the distance signal
 smoothed_distance = movmedian(corrected_distance, 5000);
 
+
 % Calculating cumulative distance over time
 cumulative_distance = cumsum(smoothed_distance);
 
@@ -224,6 +226,10 @@ plot(time, cumulative_distance);
 title('Cumulative Distance');
 xlabel('time [s]');
 ylabel('Distance [mm]');
+
+checksum = sum(cumulative_distance(:));
+disp(['Checksum after Calculating cumulative distance: ', num2str(checksum)]);
+
 
 % Save the cumulative distance data to a .mat file
 save(fullfile(data_files_folder,[case_file,'_cumulative_distance.mat']), 'cumulative_distance');
@@ -288,7 +294,7 @@ ylabel('Distance [mm]')
 
 % %Tiff file
 % filename = 'phasedifference.tiff';
-% for k=1:fr
+% for k=1:num_frm_con
 %     B=diffphconM1(:, :, k);
 %     %figure,mesh(B)
 %     B=uint8(B.*(255/(2*pi)));

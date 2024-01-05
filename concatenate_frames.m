@@ -23,13 +23,13 @@ function diff_ph_con = concatenate_frames(diff_ph1_sliced)
 
     % Iterate through the frames with the specified step size
     for l = 1:frameStep:num_frm
-        if l + frameStep > num_frm
+        if l + 1 > num_frm
             % Handle the case where the frame number exceeds the limit
             diff_ph_con_(:, 1:halfFrameWidth, l) = diff_ph1_sliced(:, :, l);
             break;
         end
         % Concatenate two frames together
-        diff_ph_con_(:, :, l) = horzcat(diff_ph1_sliced(:, :, l), diff_ph1_sliced(:, :, l + frameStep - 1));
+        diff_ph_con_(:, :, l) = horzcat(diff_ph1_sliced(:, :, l), diff_ph1_sliced(:, :, l + 1));
     end
 
     % Slice the concatenated array to remove frames with only zeros
