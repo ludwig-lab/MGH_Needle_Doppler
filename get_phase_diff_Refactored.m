@@ -11,7 +11,7 @@ clc;
 close all;
 clear all;
 
-case_file = 'example_salmon'; 
+case_file = 'UW_salmon'; 
 
 % Switch between cases
 switch case_file
@@ -45,7 +45,8 @@ switch case_file
         % Optional: Parameters for Calibration Line (if needed)
         calibration_line_start = 466; % Start of calibration line (fiber tip)
         calibration_line_end = 476;   % End of calibration line (fiber tip)
-
+    case 'UW_pork_belly'
+        
         
     otherwise
         error('Invalid case name. Please specify `example` for example data set or `salmon` for salmon data.');

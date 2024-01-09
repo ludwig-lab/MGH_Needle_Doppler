@@ -20,11 +20,11 @@ The processing pipeline involves preprocessing the raw OCT data to calculate pha
 ### Preprocessing with `get_phase_diff`
 - **Purpose**: Prepares phase difference data from the OCT probe.
 - **Input**: `.mgh` files containing phase data.
-- **Output**: Processed phase difference data used for visualization.
+- **Output**: Processed phase difference data used for visualization and saved as `.mat`.
 
 ### Visualization with `doppler_needle_vis`
 - **Purpose**: Creates a video visualization of needle movement and surface-referenced maps.
-- **Input**: Processed phase difference data, averaged optical images.
+- **Input**: Processed phase difference data, averaged optical images (intensity, retardation and HSV (intensity scaled optical axis data (theta))).
 - **Output**: A video file (`salmon_rr.avi`) showing the reconstructed needle movement.
 
 ## Detailed Steps
