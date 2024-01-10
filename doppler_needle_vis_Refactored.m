@@ -9,7 +9,7 @@ clc;
 close all;
 clear all;
 
-case_file = 'UW_salmon';
+case_file = 'UW_pork_belly';
 
 % Switch between cases
 switch case_file
@@ -34,9 +34,19 @@ switch case_file
         roi_start_row = 476; % Starting row of the region of interest
         roi_end_row = 526;   % Ending row of the region of interest
 
-
+    case 'UW_pork_belly' %Pork Belly data collected 231227
+        data_files_folder = 'H:\OFDIData\user.Ricardo\[p.240108_Needle_Probe_Data_Set1]\[p.231227_PS_Needle_Porcine][s.Belly_Probe_5_Test_1][12-27-2023_14-06-57]';
+        ii_file = '[p.231227_PS_Needle_Porcine][s.Belly_Probe_5_Test_1][12-27-2023_14-06-57].structure8.mgh';
+        oa_avg_file = 'AVG_Reslice_hsv.tif';
+        rr_avg_file = 'AVG_Reslice_rr.tif';
+        ii_avg_file = 'AVG_Reslice_ii.tif';
+        machine_ID = 'SPARC';
+        % Parameters for Region of Interest
+        roi_start_row = 548; % Starting row of the region of interest
+        roi_end_row = 598;   % Ending row of the region of interest
+        
     otherwise
-        error('Invalid case name. Please specify `example_salmon` or `UW_salmon`.');
+        error('Invalid case name. Please specify `example_salmon` or `UW_salmon` or `UW_pork_belly`.');
 end
 
 % File loading operations
@@ -87,7 +97,7 @@ needle_visualization_matrix = [-10 0; 10 0; 10 1425; -10 1385]; % Coordinates fo
 angle_range = 88:0.05:92; % Range of angles for image processing or analysis
 image_dimensions = [3600, 200]; % Dimensions (rows, columns) for the image arrays
 frame_rate = 50; % Frame rate for the output video
-video_name = 'salmon_rr.avi'; % Name of the output video file
+video_name = 'pork_belly_Test_1_hsv.avi'; % Name of the output video file
 
 % Calculations for image processing
 num_cols_phase_diff_arr = floor(num_cols/2)-1; % Calculate number of columns for phase difference array

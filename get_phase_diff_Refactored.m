@@ -11,7 +11,7 @@ clc;
 close all;
 clear all;
 
-case_file = 'UW_salmon'; 
+case_file = 'example_salmon'; 
 
 % Switch between cases
 switch case_file
@@ -45,8 +45,21 @@ switch case_file
         % Optional: Parameters for Calibration Line (if needed)
         calibration_line_start = 466; % Start of calibration line (fiber tip)
         calibration_line_end = 476;   % End of calibration line (fiber tip)
-    case 'UW_pork_belly'
+
+    case 'UW_pork_belly' %Pork Belly data collected 231227
+        % Set directory and filenames for phase files
+        data_files_folder = 'H:\OFDIData\user.Ricardo\[p.240108_Needle_Probe_Data_Set1]\[p.231227_PS_Needle_Porcine][s.Belly_Probe_5_Test_1][12-27-2023_14-06-57]';
+        file_name1 = '[p.231227_PS_Needle_Porcine][s.Belly_Probe_5_Test_1][12-27-2023_14-06-57].phaseXA.mgh';
+        file_name2 = '[p.231227_PS_Needle_Porcine][s.Belly_Probe_5_Test_1][12-27-2023_14-06-57].phaseXB.mgh';
+        read_opt.nFrames = 1023;
+        machine_ID = 'SPARC';
+        % Parameters for Region of Interest
+        roi_start_row = 548; % Starting row of the region of interest
+        roi_end_row = 598;   % Ending row of the region of interest
         
+        % Optional: Parameters for Calibration Line (if needed)
+        calibration_line_start = 538; % Start of calibration line (fiber tip)
+        calibration_line_end = 548;   % End of calibration line (fiber tip)
         
     otherwise
         error('Invalid case name. Please specify `example` for example data set or `salmon` for salmon data.');
