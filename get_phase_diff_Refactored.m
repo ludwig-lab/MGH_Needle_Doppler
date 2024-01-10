@@ -11,7 +11,7 @@ clc;
 close all;
 clear all;
 
-case_file = 'example_salmon'; 
+case_file = 'UW_pork_belly'; 
 
 % Switch between cases
 switch case_file
@@ -86,7 +86,7 @@ phase1 = single(phase_img_8bit1).*(2*pi)./(2^number_bits-1)-pi;
 [~, ~, num_frm] = size(phase1); 
 
 % Define column distance based on machine type
-col_distance = (strcmp(machine_ID, 'MGH')) * 2 + (strcmp(machine_ID, 'SPARC')) * 1;
+col_distance = (strcmp(machine_ID, 'MGH')) * 2 + (strcmp(machine_ID, 'SPARC')) * 2;
 
 % Call the function to calculate phase difference
 diff_ph1 = calculate_phase_difference(phase1, col_distance);

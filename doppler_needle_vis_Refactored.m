@@ -20,7 +20,7 @@ switch case_file
         rr_avg_file = 'rravg_salmon.tif';
         ii_avg_file = 'iiavg_salmon.tif';
         machine_ID = 'MGH';
-        roi_start_row = 500; % Starting row of the region of interest
+        roi_start_row = 470; % Starting row of the region of interest
         roi_end_row = 600;   % Ending row of the region of interest
 
     case 'UW_salmon' % Salmon data
@@ -63,7 +63,7 @@ load(cumulative_distance_file); % Load the cumulative distance data
 
 num_rows = size(ii_avg,1);
 num_cols = size(ii_avg,2);
-
+num_rows_roi = num_rows - roi_start_row
 %%
 % z = cumulative_distance(1:511:end)*600;
 % pixel = round(z/max(z)*1399)+1;
@@ -158,16 +158,16 @@ for i=1:700
     pos = (pos + 1401);
 
     figure(2);
-    height(pos(i):(pos(i)+554)) = height(pos(i):(pos(i)+554)) + 1;
+    height(pos(i):(pos(i)+num_rows_roi)) = height(pos(i):(pos(i)+num_rows_roi)) + 1;
     % commented out by Rex until we have oa data ready
-    oa_Int(pos(i):(pos(i)+554),2:end,:) = oa_Int(pos(i):(pos(i)+554),1:(end-1),:);  % commented out by Rex until we have oa data ready
-    oa_Int(pos(i):(pos(i)+554),1,:) = oa_avg(470:1024,i+200,:); % commented out by Rex until we have oa data ready
+    oa_Int(pos(i):(pos(i)+num_rows_roi),2:end,:) = oa_Int(pos(i):(pos(i)+num_rows_roi),1:(end-1),:);  % commented out by Rex until we have oa data ready
+    oa_Int(pos(i):(pos(i)+num_rows_roi),1,:) = oa_avg(roi_start_row:num_rows,i+200,:); % commented out by Rex until we have oa data ready
 
-    rr_Int(pos(i):(pos(i)+554),2:end,:) = rr_Int(pos(i):(pos(i)+554),1:(end-1));
-    rr_Int(pos(i):(pos(i)+554),1,:) = rr_avg(470:1024,i+200);
+    rr_Int(pos(i):(pos(i)+num_rows_roi),2:end,:) = rr_Int(pos(i):(pos(i)+num_rows_roi),1:(end-1));
+    rr_Int(pos(i):(pos(i)+num_rows_roi),1,:) = rr_avg(roi_start_row:num_rows,i+200);
 
-    ii_Int(pos(i):(pos(i)+554),2:end,:) = ii_Int(pos(i):(pos(i)+554),1:(end-1));
-    ii_Int(pos(i):(pos(i)+554),1,:) = ii_avg(470:1024,i+200);
+    ii_Int(pos(i):(pos(i)+num_rows_roi),2:end,:) = ii_Int(pos(i):(pos(i)+num_rows_roi),1:(end-1));
+    ii_Int(pos(i):(pos(i)+num_rows_roi),1,:) = ii_avg(roi_start_row:num_rows,i+200);
 
     % commented out by Rex until we have oa data ready
     oa_sInt = oa_Int((pos(i)-1400):(pos(i)+400),:,:); % commented out by Rex until we have oa data ready
